@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<!-- dashboard integration patch -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentrix SOC — Command Center</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:        #080b10;
+    --surface:   #0d1117;
+    --border:    #1a2030;
+    --accent:    #00d4ff;
+    --accent2:   #7c3aed;
+    --online:    #00ff88;
+    --warn:      #ffaa00;
+    --danger:    #ff4466;
+    --text:      #c9d1d9;
+    --muted:     #4a5568;
+    --heading:   #ffffff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo::before {
+    content: '⬡';
+    font-size: 20px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--online);
+    box-shadow: 0 0 8px var(--online);
+    animation: pulse 1.5s infinite;
+    display: inline-block;
+  }
+
+  /* ── LAYOUT ── */
+  .container { padding: 24px 28px; }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+  }
+
+  .stat-card:nth-child(2)::before { background: var(--online); }
+  .stat-card:nth-child(3)::before { background: var(--warn); }
+  .stat-card:nth-child(4)::before { background: var(--danger); }
+
+  .stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--heading);
+  }
+
+  /* ── SECTION HEADER ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title::before {
+    content: '';
+    display: block;
+    width: 3px; height: 14px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  /* ── AGENT TABLE ── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  thead tr {
+    border-bottom: 1px solid var(--border);
+    background: #0a0f18;
+  }
+
+  th {
+    padding: 10px 16px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+    cursor: pointer;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #111822; }
+  tbody tr.selected { background: #0d1f33; border-left: 2px solid var(--accent); }
+
+  td {
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .badge.online  { background: #00ff8822; color: var(--online); border: 1px solid #00ff8840; }
+  .badge.offline { background: #ff446622; color: var(--danger); border: 1px solid #ff446640; }
+  .badge.tamper  { background: #ffaa0022; color: var(--warn);   border: 1px solid #ffaa0040; }
+
+  .badge::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  /* ── COMMAND PANEL ── */
+  .panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .panel-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: #0a0f18;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-body { padding: 16px; }
+
+  /* ── COMMAND FORM ── */
+  .cmd-target {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: #080b10;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+  }
+
+  .cmd-target.none { color: var(--muted); }
+
+  .cmd-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .cmd-btn {
+    padding: 8px 4px;
+    background: #0a0f18;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+
+  .cmd-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: #00d4ff0f;
+  }
+
+  .cmd-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: #00d4ff15;
+  }
+
+  .custom-cmd {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .cmd-input {
+    flex: 1;
+    background: #080b10;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .cmd-input:focus { border-color: var(--accent); }
+  .cmd-input::placeholder { color: var(--muted); }
+
+  .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .btn-primary:hover { background: #00b8e6; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-danger {
+    background: transparent;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+  }
+
+  .btn-danger:hover { background: #ff446615; }
+
+  /* ── LOG FEED ── */
+  .log-feed {
+    height: 220px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    padding: 4px 0;
+  }
+
+  .log-entry {
+    padding: 3px 0;
+    border-bottom: 1px solid #ffffff08;
+    display: flex;
+    gap: 10px;
+  }
+
+  .log-time { color: var(--muted); min-width: 70px; }
+  .log-level { min-width: 48px; }
+  .log-level.INFO    { color: var(--accent); }
+  .log-level.WARNING { color: var(--warn); }
+  .log-level.ERROR   { color: var(--danger); }
+  .log-msg { color: var(--text); }
+
+  .log-feed::-webkit-scrollbar { width: 4px; }
+  .log-feed::-webkit-scrollbar-track { background: transparent; }
+  .log-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── DETAIL PANEL ── */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  
+  .detail-key {
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+
+  .detail-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+  }
+
+  /* ── REFRESH ── */
+  .refresh-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .progress-ring {
+    width: 14px; height: 14px;
+  }
+
+  /* ── EMPTY STATE ── */
+  .empty {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+
+  .empty-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.4; }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 999;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+</style>
+</head>
+<body>
+    <div id="sentrix-dashboard-debug" style="display:none; margin-top: 8px; font-size: 12px; color: #7dd3fc;"></div>
+    <div class="container">
+
+<header>
+  <div class="logo">SENTRIX SOC</div>
+  <div class="header-right">
+    <span><span class="live-dot"></span> LIVE</span>
+    <span id="user-info" style="color:var(--accent)">—</span>
+
+    <button
+      class="btn"
+      style="padding:4px 10px;font-size:10px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer"
+      onclick="logout()">
+      LOGOUT
+    </button>
+    <span id="clock">--:--:--</span>
+    <div class="refresh-bar">
+      AUTO-REFRESH <span id="countdown">5</span>s
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-label">Total Agents</div>
+      <div class="stat-value" id="stat-total">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Online</div>
+      <div class="stat-value" id="stat-online" style="color:var(--online)">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Offline</div>
+      <div class="stat-value" id="stat-offline" style="color:var(--warn)">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Alerts</div>
+      <div class="stat-value" id="stat-alerts" style="color:var(--danger)">0</div>
+    </div>
+  </div>
+  <!-- Tamper Alerts -->
+<div id="tamper-section" style="display:none;margin-bottom:24px">
+  <div class="section-header">
+    <div class="section-title" style="color:var(--danger)">⚠ Tamper Alerts</div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Client ID</th>
+            <th>Message</th>
+            <th>Time</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tamper-table"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Agent Table -->
+  <div class="section-header">
+    <div class="section-title">Connected Agents</div>
+    <button class="btn btn-primary" onclick="fetchSessions()">↻ Refresh</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Hostname</th>
+          <th>Client ID</th>
+          <th>IP Address</th>
+          <th>OS</th>
+          <th>Status</th>
+          <th>Last Seen</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="agent-table">
+        <tr><td colspan="7"><div class="empty"><div class="empty-icon">⬡</div>Loading agents...</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Bottom Panels -->
+  <div class="panel-grid">
+
+    <!-- Command Panel -->
+    <div class="panel">
+      <div class="panel-head">
+        <span>Command Console</span>
+        <span id="cmd-target-label" style="color:var(--accent)">No agent selected</span>
+      </div>
+      <div class="panel-body">
+        <div class="cmd-buttons">
+          <div class="cmd-btn" onclick="selectCmd('ping')">ping</div>
+          <div class="cmd-btn" onclick="selectCmd('hostname')">hostname</div>
+          <div class="cmd-btn" onclick="selectCmd('os')">os info</div>
+          <div class="cmd-btn" onclick="selectCmd('sysinfo')">sysinfo</div>
+          <div class="cmd-btn" onclick="selectCmd('shell')">shell</div>
+          <div class="cmd-btn" onclick="selectCmd('custom')">custom</div>
+        </div>
+        <div class="custom-cmd">
+          <input class="cmd-input" id="cmd-input" placeholder="command or shell args..." />
+          <button class="btn btn-primary" id="send-btn" onclick="sendCommand()" disabled>SEND</button>
+        </div>
+        <div id="cmd-result" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);min-height:32px;padding:8px;background:#080b10;border-radius:6px;border:1px solid var(--border);">
+          — awaiting command result —
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Detail + Log Feed -->
+    <div class="panel">
+      <div class="panel-head">
+        <span>Agent Detail</span>
+        <span id="detail-id" style="color:var(--muted);font-size:10px"></span>
+      </div>
+      <div class="panel-body">
+        <div class="detail-grid" id="detail-grid">
+          <div class="empty" style="grid-column:span 2;padding:20px">
+            <div class="empty-icon">⬡</div>
+            Select an agent to view details
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const token = localStorage.getItem('sentrix_token');
+  const userRoles = JSON.parse(localStorage.getItem('sentrix_roles') || '[]');
+  const debugLog = (...args) => console.log('[dashboard]', ...args);
+
+  async function ensureValidSession() {
+    if (!token) {
+      window.location.replace('/login');
+      return false;
+    }
+
+    try {
+      const res = await fetch('/auth/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        throw new Error('invalid-session');
+      }
+      return true;
+    } catch (e) {
+      logout();
+      return false;
+    }
+  }
+
+  // Token nahi hai toh login pe bhejo
+  if (!token) window.location.replace('/login');
+
+  // Role checks
+  const canRunShell = userRoles.some(r =>
+    ['admin@Super', 'admin@SOC'].includes(r)
+  );
+
+  const canDisconnect = userRoles.some(r =>
+    ['admin@Super', 'admin@SOC'].includes(r)
+  );
+
+  const canApproveTamper = userRoles.some(r =>
+    ['admin@Super', 'admin@SOC'].includes(r)
+  );
+
+  const canRunCommands = userRoles.some(r =>
+    ['admin@Super', 'admin@SOC', 'analyst@SOC'].includes(r)
+  );
+  const API = '';  // same origin
+  async function authFetch(url, options = {}) {
+    const headers = {
+      ...(options.headers || {}),
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+
+    const res = await fetch(url, {
+      ...options,
+      headers
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      return res;
+    }
+
+    return res;
+}
+  let selectedAgent  = null;
+  let selectedCmd    = null;
+  let countdown      = 5;
+  let allSessions    = [];
+  function logout() {
+    localStorage.removeItem('sentrix_token');
+    localStorage.removeItem('sentrix_roles');
+    localStorage.removeItem('sentrix_username');
+    window.location.href = '/login';
+  }
+
+  const username = localStorage.getItem('sentrix_username');
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('user-info');
+    if (el && username) {
+      el.textContent = username.toUpperCase();
+    }
+  });
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = value ?? '—';
+    }
+  }
+
+  // ── Clock ──────────────────────────────────────────
+  function updateClock() {
+    const clock = document.getElementById('clock');
+    if (clock) {
+      clock.textContent = new Date().toLocaleTimeString('en-GB');
+    }
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ── Countdown ──────────────────────────────────────
+  setInterval(() => {
+    countdown--;
+    setText('countdown', countdown);
+    if (countdown <= 0) {
+      countdown = 5;
+      fetchSessions();
+    }
+  }, 1000);
+
+  // ── Toast ──────────────────────────────────────────
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  function normalizeSessionsPayload(data) {
+    if (Array.isArray(data)) {
+      return data.filter(Boolean);
+    }
+
+    if (!data || typeof data !== 'object') {
+      return [];
+    }
+
+    if (data.client_id || data.client || data.hostname || data.machine || data.ip || data.last_seen) {
+      return [data];
+    }
+
+    if (Array.isArray(data.sessions)) {
+      return data.sessions.filter(Boolean);
+    }
+    if (Array.isArray(data.items)) {
+      return data.items.filter(Boolean);
+    }
+    if (Array.isArray(data.results)) {
+      return data.results.filter(Boolean);
+    }
+
+    if (data.sessions && typeof data.sessions === 'object') {
+      return normalizeSessionsPayload(data.sessions);
+    }
+    if (data.items && typeof data.items === 'object') {
+      return normalizeSessionsPayload(data.items);
+    }
+    if (data.results && typeof data.results === 'object') {
+      return normalizeSessionsPayload(data.results);
+    }
+
+    const values = Object.values(data).filter(v => v && typeof v === 'object');
+    const candidates = values.filter(v =>
+      v && typeof v === 'object' &&
+      (v.client_id || v.client || v.hostname || v.machine || v.ip || v.last_seen)
+    );
+
+    return candidates.length ? candidates : [];
+  }
+
+  function getSessionDisplayName(s) {
+    return s?.client || s?.hostname || s?.machine?.hostname || '—';
+  }
+
+  function getSessionId(s) {
+    return s?.client_id || s?.id || s?.session_id || '—';
+  }
+
+  // ── Fetch Sessions ─────────────────────────────────
+  async function fetchSessions() {
+    try {
+      const res  = await authFetch(`${API}/api/sessions`);
+      if (!res || res.status === 403) {
+        allSessions = [];
+        renderTable([]);
+        updateStats([]);
+        return;
+      }
+      const data = await res.json();
+      debugLog('sessions payload', data);
+      const normalized = normalizeSessionsPayload(data.sessions || data);
+      allSessions = normalized;
+      renderTable(allSessions);
+      updateStats(allSessions);
+      if (selectedAgent) {
+        const updated = allSessions.find(s => getSessionId(s) === getSessionId(selectedAgent));
+        if (updated) renderDetail(updated);
+      }
+    } catch(e) {
+      debugLog('sessions fetch failed', e);
+      document.getElementById('agent-table').innerHTML =
+        `<tr><td colspan="7"><div class="empty"><div class="empty-icon">⚠</div>Cannot reach server — ${e.message}</div></td></tr>`;
+    }
+    fetchTamperAlerts();
+  }
+  // ── Tamper Alerts ──────────────────────────────────
+  async function fetchTamperAlerts() {
+    try {
+      const res  = await authFetch(`${API}/admin/tamper/alerts`);
+      const section = document.getElementById('tamper-section');
+      const tbody   = document.getElementById('tamper-table');
+
+      if (!section || !tbody) {
+        return;
+      }
+
+      if (!res || res.status === 401 || res.status === 403) {
+        section.style.display = 'none';
+        return;
+      }
+
+      const data = await res.json();
+      const pending = Object.values(data).filter(a => a.status === 'pending');
+
+      if (pending.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+
+      section.style.display = 'block';
+      tbody.innerHTML = pending.map(a => `
+        <tr>
+          <td style="color:var(--danger)">${String(a.client_id || 'unknown').slice(0,16)}…</td>
+          <td>${a.message || 'Tamper alert'}</td>
+          <td style="color:var(--muted)">${a.timestamp ? new Date(a.timestamp).toLocaleTimeString() : '—'}</td>
+          <td>
+            ${
+              canApproveTamper
+                ? `
+                <button class="btn btn-primary"
+                  style="margin-right:8px"
+                  onclick="approveTamper('${a.client_id || ''}')">
+                  APPROVE
+                </button>
+
+                <button class="btn btn-danger"
+                  onclick="rejectTamper('${a.client_id || ''}')">
+                  REJECT
+                </button>
+                `
+                : ''
+            }
+          </td>
+        </tr>
+      `).join('');
+
+    } catch(e) { console.error(e); }
+  }
+
+  async function approveTamper(client_id) {
+    await authFetch(`${API}/admin/tamper/approve?client_id=${client_id}`, { method: 'POST' });
+    toast('Client approved — re-registration allowed');
+    fetchTamperAlerts();
+  }
+
+  async function rejectTamper(client_id) {
+    await authFetch(`${API}/admin/tamper/reject?client_id=${client_id}`, { method: 'POST' });
+    toast('Client rejected');
+    fetchTamperAlerts();
+  }
+  // ── Stats ──────────────────────────────────────────
+  function updateStats(sessions) {
+    const normalized = normalizeSessionsPayload(sessions);
+    const online  = normalized.filter(s => s.status === 'online').length;
+    const offline = normalized.length - online;
+    const alerts  = normalized.filter(s => s.alerts && s.alerts.length > 0).length;
+    setText('stat-total', normalized.length);
+    setText('stat-online', online);
+    setText('stat-offline', offline);
+    setText('stat-alerts', alerts);
+  }
+
+  async function fetchAgentInfo() {
+    try {
+      const res = await authFetch(`${API}/api/agent`);
+      const data = await res.json();
+      debugLog('agent payload', data);
+      const agentId = document.getElementById('agent-id');
+      const agentHost = document.getElementById('agent-host');
+      if (agentId) agentId.textContent = data.client_id || '—';
+      if (agentHost) agentHost.textContent = data.hostname || '—';
+    } catch (e) {
+      debugLog('agent info fetch failed', e);
+    }
+  }
+
+  // ── Table ──────────────────────────────────────────
+  function renderTable(sessions) {
+    const normalized = normalizeSessionsPayload(sessions);
+    const tbody = document.getElementById('agent-table');
+    if (!normalized.length) {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">⬡</div>No agents registered yet</div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = normalized.map(s => {
+      const status   = s.status === 'online' ? 'online' : 'offline';
+      const lastSeen = s.last_seen ? new Date(s.last_seen).toLocaleTimeString() : '—';
+      const os       = s.machine ? s.machine.os : (s.client || '—');
+      const id       = getSessionId(s);
+      const isSelected = selectedAgent && getSessionId(selectedAgent) === id ? 'selected' : '';
+      return `
+        <tr class="${isSelected}" onclick="selectAgent('${id}')">
+          <td>${getSessionDisplayName(s)}</td>
+          <td style="color:var(--muted)">${String(id).slice(0,8)}…</td>
+          <td>${s.ip || '—'}</td>
+          <td>${os}</td>
+          <td><span class="badge ${status}">${status.toUpperCase()}</span></td>
+          <td style="color:var(--muted)">${lastSeen}</td>
+          <td>
+            ${
+              canDisconnect
+                ? `
+                <button class="btn btn-danger"
+                  style="padding:4px 10px;font-size:10px"
+                  onclick="event.stopPropagation();killAgent('${id}')">
+                  DISCONNECT
+                </button>
+                `
+                : ''
+            }
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  // ── Select Agent ───────────────────────────────────
+  function selectAgent(client_id) {
+    selectedAgent = allSessions.find(s => getSessionId(s) === client_id);
+    if (!selectedAgent) return;
+
+    // Update table highlight
+    document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
+    if (event && event.currentTarget) event.currentTarget.classList.add('selected');
+
+    // Update command panel
+    document.getElementById('cmd-target-label').textContent =
+      getSessionDisplayName(selectedAgent) || client_id.slice(0,8);
+    document.getElementById('send-btn').disabled = !canRunCommands;
+
+    renderDetail(selectedAgent);
+  }
+
+  // ── Detail ─────────────────────────────────────────
+  // ── Detail ─────────────────────────────────────────
+  function renderDetail(s) {
+    const m = s.machine || {};
+    const services = s.services || {};
+    const id = getSessionId(s);
+    const wazuhStatus    = services.wazuh?.status    || 'inactive';
+    const suricataStatus = services.suricata?.status || 'inactive';
+    const svcColor = (st) => st === 'active' ? 'var(--online)' : 'var(--danger)';
+
+    document.getElementById('detail-id').textContent = String(id).slice(0,16) + '…';
+    document.getElementById('detail-grid').innerHTML = `
+      <div class="detail-item"><div class="detail-key">Hostname</div><div class="detail-val">${m.hostname || s.client || '—'}</div></div>
+      <div class="detail-item"><div class="detail-key">Username</div><div class="detail-val">${m.username || '—'}</div></div>
+      <div class="detail-item"><div class="detail-key">IP</div><div class="detail-val">${s.ip || '—'}</div></div>
+      <div class="detail-item"><div class="detail-key">MAC</div><div class="detail-val">${m.mac || '—'}</div></div>
+      <div class="detail-item"><div class="detail-key">OS</div><div class="detail-val">${m.os || '—'} ${m.architecture || ''}</div></div>
+      <div class="detail-item"><div class="detail-key">CPU</div><div class="detail-val">${m.cpu ? m.cpu.slice(0,28) : '—'}</div></div>
+      <div class="detail-item"><div class="detail-key">RAM</div><div class="detail-val">${m.ram_gb || '—'} GB</div></div>
+      <div class="detail-item"><div class="detail-key">Timezone</div><div class="detail-val">${m.timezone || '—'}</div></div>
+      <div class="detail-item"><div class="detail-key">Registered</div><div class="detail-val">${m.registered_at ? new Date(m.registered_at).toLocaleDateString() : '—'}</div></div>
+      <div class="detail-item"><div class="detail-key">Last Seen</div><div class="detail-val">${s.last_seen ? new Date(s.last_seen).toLocaleTimeString() : '—'}</div></div>
+      <div class="detail-item"><div class="detail-key">Pending Cmds</div><div class="detail-val">${(s.commands||[]).filter(c=>c.status==='pending').length}</div></div>
+      <div class="detail-item"><div class="detail-key">Alerts</div><div class="detail-val" style="color:var(--danger)">${(s.alerts||[]).length}</div></div>
+      <div class="detail-item"><div class="detail-key">Wazuh</div><div class="detail-val" style="color:${svcColor(wazuhStatus)}">● ${wazuhStatus.toUpperCase()}</div></div>
+      <div class="detail-item"><div class="detail-key">Suricata</div><div class="detail-val" style="color:${svcColor(suricataStatus)}">● ${suricataStatus.toUpperCase()}</div></div>
+    `;
+  }
+
+  // ── Select Command ─────────────────────────────────
+  function selectCmd(cmd) {
+    selectedCmd = cmd;
+    document.querySelectorAll('.cmd-btn').forEach(b => b.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    const input = document.getElementById('cmd-input');
+    if (cmd === 'shell' || cmd === 'custom') {
+      input.placeholder = cmd === 'shell' ? 'e.g. whoami or ipconfig /all' : 'custom command...';
+      input.focus();
+    } else {
+      input.placeholder = `${cmd} — no args needed`;
+    }
+  }
+
+  // ── Send Command ───────────────────────────────────
+  async function sendCommand() {
+    if (selectedCmd === 'shell' && !canRunShell) {
+        toast('Unauthorized');
+        return;
+    }
+    if (!selectedAgent || !selectedCmd) {
+      toast('Select an agent and command first');
+      return;
+    }
+    const args  = document.getElementById('cmd-input').value.trim();
+    const cmd   = selectedCmd === 'custom' ? args : selectedCmd;
+    const cmdArgs = (selectedCmd === 'shell' || selectedCmd === 'custom') ? args : '';
+
+    try {
+      const res = await authFetch(`${API}/admin/command?client_id=${selectedAgent.client_id}&command=${cmd}&args=${encodeURIComponent(cmdArgs)}`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      toast(`✓ Command queued — ID: ${data.cmd_id}`);
+      document.getElementById('cmd-result').textContent = `Queued: ${cmd} → waiting for agent response...`;
+      document.getElementById('cmd-result').style.color = 'var(--accent)';
+
+      // Poll for result
+      pollResult(data.cmd_id);
+    } catch(e) {
+      toast(`✗ Failed: ${e.message}`);
+    }
+  }
+
+  // ── Poll Result ────────────────────────────────────
+  async function pollResult(cmd_id) {
+    for (let i = 0; i < 20; i++) {
+      await new Promise(r => setTimeout(r, 1500));
+      const session = await authFetch(`${API}/session/${selectedAgent.client_id}`).then(r=>r.json()).catch(()=>null);
+      if (!session) break;
+      const cmd = (session.commands || []).find(c => c.cmd_id === cmd_id);
+      if (cmd && cmd.status === 'done') {
+        document.getElementById('cmd-result').textContent = cmd.result || '(no output)';
+        document.getElementById('cmd-result').style.color = 'var(--online)';
+        toast('✓ Result received');
+        return;
+      }
+    }
+    document.getElementById('cmd-result').textContent = '(timed out — agent may be offline)';
+    document.getElementById('cmd-result').style.color = 'var(--warn)';
+  }
+
+  // ── Kill Agent ─────────────────────────────────────
+  async function killAgent(client_id) {
+    if (!confirm('Send DISCONNECT command to this agent?')) return;
+    await authFetch(`${API}/admin/command?client_id=${client_id}&command=disconnect`, { method: 'POST' });
+    toast('Disconnect command sent');
+  }
+  function renderCmdButtons() {
+
+    const shellBtn =
+      document.querySelector('[onclick="selectCmd(\'shell\')"]');
+
+    if (shellBtn && !canRunShell) {
+      shellBtn.style.display = 'none';
+    }
+
+    const sendBtn = document.getElementById('send-btn');
+
+    if (!canRunCommands) {
+      sendBtn.disabled = true;
+    }
+  }
+  // ── SSE ────────────────────────────────────────────
+  function connectStream() {
+    try {
+      const stream = new EventSource('/api/stream');
+      stream.addEventListener('session-update', (event) => {
+        debugLog('stream event', event.data);
+        const payload = JSON.parse(event.data);
+        const sessions = normalizeSessionsPayload(payload.sessions || payload);
+        allSessions = sessions;
+        renderTable(allSessions);
+        updateStats(allSessions);
+        if (selectedAgent) {
+          const updated = allSessions.find(s => getSessionId(s) === getSessionId(selectedAgent));
+          if (updated) renderDetail(updated);
+        }
+      });
+      stream.onerror = () => {
+        debugLog('stream disconnected');
+      };
+    } catch (e) {
+      debugLog('stream init failed', e);
+    }
+  }
+
+  // ── Init ───────────────────────────────────────────
+  function initDashboard() {
+    renderCmdButtons();
+    fetchAgentInfo();
+    fetchSessions();
+    connectStream();
+  }
+
+  window.addEventListener('DOMContentLoaded', initDashboard);
+  if (document.readyState !== 'loading') {
+    initDashboard();
+  }
+</script>
+</body>
+</html>

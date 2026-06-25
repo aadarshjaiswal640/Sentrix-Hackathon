@@ -1,0 +1,59 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Logs and runtime artifacts
+*.log
+logs/
+temp/
+tmp/
+cache/
+.cache/
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Build and package outputs
+dist/
+build/
+node_modules/
+
+# Generated reports and exports
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+reports/
+artifacts/
+screenshots/
+test-output/
+output/
+
+# OS files
+.DS_Store
+._*
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.code-workspace

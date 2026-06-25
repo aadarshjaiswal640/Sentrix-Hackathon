@@ -1,0 +1,158 @@
+
+
+services:
+  suricata:
+    image: jasonish/suricata:latest
+    container_name: sentrix-suricata
+
+    # network_mode: host is REQUIRED so Suricata monitors the host machine's
+    # real network interface instead of the Docker bridge (eth0 inside Docker
+    # only sees inter-container traffic, not LAN or external traffic).
+    network_mode: host
+
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+
+    # SURICATA_IFACE is read from docker/.env
+    # Set it to your actual host interface: eth0, enp0s3, ens3, etc.
+    # Run `ip link show` on the host to find the correct name.
+    command:
+      - "-i"
+      - "${SURICATA_IFACE:-eth0}"
+
+    volumes:
+      - suricata_logs:/var/log/suricata
+      - ./suricata:/etc/suricata
+
+    restart: unless-stopped
+
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: sentrix-elastic
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - xpack.security.enabled=false
+    volumes:
+      - elastic_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.0
+    container_name: sentrix-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://sentrix-elastic:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+  wazuh:
+    image: wazuh/wazuh-manager:4.7.0
+    container_name: sentrix-wazuh
+    environment:
+      - API_USERNAME=sentrix
+      - API_PASSWORD=Sentrix@2026!
+    volumes:
+      - wazuh_logs:/var/ossec/logs
+      - ./wazuh:/var/ossec/etc
+      - ./wazuh/api/configuration:/var/ossec/api/configuration
+      - ./wazuh/filebeat.yml:/etc/filebeat/filebeat.yml:ro
+    ports:
+      - "1514:1514"
+      - "1515:1515"
+      - "55000:55000"
+    restart: unless-stopped
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.13.0
+    container_name: sentrix-filebeat
+    user: root
+    command: filebeat -e --strict.perms=false
+    volumes:
+      - suricata_logs:/var/log/suricata:ro
+      - wazuh_logs:/var/log/wazuh:ro
+      - filebeat_registry:/usr/share/filebeat/data
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    container_name: sentrix-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  thehive:
+    image: strangebee/thehive:5.2
+    container_name: sentrix-thehive
+    ports:
+      - "9000:9000"
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.7
+    container_name: sentrix-keycloak
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=sentrix123
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTP_ENABLED=true
+      - KC_HEALTH_ENABLED=true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    command:
+      - start-dev
+      - --import-realm
+    restart: unless-stopped
+
+  session-manager:
+    build: ./session-manager
+    container_name: session-manager
+
+    ports:
+      - "8000:8000"
+
+    environment:
+      # URL of the agent's threat dashboard (port 7000).
+      # On Linux: use the server's actual LAN IP instead of host.docker.internal.
+      # On macOS/Windows Docker Desktop: host.docker.internal resolves automatically.
+      - SENTRIX_DASHBOARD_URL=http://host.docker.internal:7000
+
+      # Elasticsearch host returned to agents in service-session.
+      # Single-machine: 127.0.0.1 (agent and ES on same host, port 9200 mapped).
+      # Multi-machine: set to the server's LAN IP in docker/.env
+      - SENTRIX_ES_HOST=${SENTRIX_SERVER_IP:-127.0.0.1}
+
+    # Needed on Linux where host.docker.internal is not available by default.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    volumes:
+      - ../cleint/pipeline/dashboard:/app/dashboard_assets:ro
+
+    depends_on:
+      - redis
+
+    restart: unless-stopped
+
+volumes:
+  elastic_data:
+  suricata_logs:
+  wazuh_logs:
+  filebeat_registry:
+  redis_data:

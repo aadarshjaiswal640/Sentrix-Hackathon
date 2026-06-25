@@ -1,0 +1,27 @@
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/suricata/eve.json
+    json.keys_under_root: true
+    json.add_error_key: true
+    tags: ["suricata"]
+
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/wazuh/alerts/**/*.json
+    recursive_glob.enabled: true
+    json.keys_under_root: true
+    json.add_error_key: true
+    tags: ["wazuh"]
+
+output.elasticsearch:
+  hosts: ["http://sentrix-elastic:9200"]
+  indices:
+    - index: "suricata-events-%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "suricata"
+    - index: "wazuh-alerts-%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "wazuh"

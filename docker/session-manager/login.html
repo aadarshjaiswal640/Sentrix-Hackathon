@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sentrix SOC — Login</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+  :root {
+    --bg:#080b10;--surface:#0d1117;--border:#1a2030;
+    --accent:#00d4ff;--danger:#ff4466;--text:#c9d1d9;--muted:#4a5568;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:'Inter',sans-serif; font-size:13px;
+    min-height:100vh; display:flex;
+    align-items:center; justify-content:center;
+  }
+  .card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:40px; width:380px;
+  }
+  .logo {
+    font-family:'JetBrains Mono',monospace; font-weight:700;
+    font-size:18px; color:var(--accent); letter-spacing:2px;
+    margin-bottom:8px;
+  }
+  .subtitle {
+    font-family:'JetBrains Mono',monospace; font-size:10px;
+    color:var(--muted); letter-spacing:1.5px;
+    text-transform:uppercase; margin-bottom:32px;
+  }
+  .field { margin-bottom:16px; }
+  .field label {
+    display:block; font-family:'JetBrains Mono',monospace;
+    font-size:10px; letter-spacing:1px; color:var(--muted);
+    text-transform:uppercase; margin-bottom:6px;
+  }
+  .field input {
+    width:100%; background:#080b10; border:1px solid var(--border);
+    border-radius:6px; padding:10px 12px; color:var(--text);
+    font-family:'JetBrains Mono',monospace; font-size:12px;
+    outline:none; transition:border-color 0.15s;
+  }
+  .field input:focus { border-color:var(--accent); }
+  .btn {
+    width:100%; padding:11px; border-radius:6px; border:none;
+    background:var(--accent); color:#000;
+    font-family:'JetBrains Mono',monospace; font-size:12px;
+    font-weight:700; cursor:pointer; letter-spacing:1px;
+    transition:background 0.15s; margin-top:8px;
+  }
+  .btn:hover { background:#00b8e6; }
+  .btn:disabled { opacity:0.4; cursor:not-allowed; }
+  .error {
+    background:#ff446615; border:1px solid #ff446640;
+    border-radius:6px; padding:10px 12px; margin-top:16px;
+    font-family:'JetBrains Mono',monospace; font-size:11px;
+    color:var(--danger); display:none;
+  }
+  .divider {
+    border:none; border-top:1px solid var(--border);
+    margin:24px 0;
+  }
+  .role-info {
+    font-family:'JetBrains Mono',monospace; font-size:10px;
+    color:var(--muted); text-align:center;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">⬡ SENTRIX SOC</div>
+  <div class="subtitle">Security Operations Center</div>
+
+  <div class="field">
+    <label>Username</label>
+    <input id="username" type="text" placeholder="soc_admin" autocomplete="username" />
+  </div>
+  <div class="field">
+    <label>Password</label>
+    <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
+  </div>
+
+  <button class="btn" id="login-btn" onclick="doLogin()">AUTHENTICATE</button>
+  <div class="error" id="error-box"></div>
+
+  <hr class="divider">
+  <div class="role-info">Access is role-restricted via Keycloak IAM</div>
+</div>
+
+<script>
+  // Enter key support
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+
+  async function validateStoredSession() {
+    const token = localStorage.getItem('sentrix_token');
+    if (!token) return false;
+
+    try {
+      const res = await fetch('/auth/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        window.location.replace('/dashboard');
+        return true;
+      }
+    } catch (e) {
+      console.warn('Stored session validation failed', e);
+    }
+
+    localStorage.removeItem('sentrix_token');
+    localStorage.removeItem('sentrix_roles');
+    localStorage.removeItem('sentrix_username');
+    return false;
+  }
+
+  // Already logged in?
+  validateStoredSession();
+
+  function decodeTokenPayload(token) {
+    if (!token) return null;
+    const parts = token.split('.');
+    const encoded = parts.length > 1 ? parts[1] : token;
+    try {
+      const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+      const decoded = decodeURIComponent(atob(padded).split('').map(c => `%${('00' + c.charCodeAt(0).toString(16)).slice(-2)}`).join(''));
+      return JSON.parse(decoded);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function doLogin() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const btn      = document.getElementById('login-btn');
+    const errBox   = document.getElementById('error-box');
+
+    if (!username || !password) {
+      showError('Username and password required');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'AUTHENTICATING...';
+    errBox.style.display = 'none';
+
+    try {
+      const res = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showError(data.detail || 'Login failed');
+        return;
+      }
+
+      // Token store karo
+      localStorage.setItem('sentrix_token',    data.access_token);
+      localStorage.setItem('sentrix_username', username);
+
+      // Roles decode karo from JWT or fallback local token
+      const payload = decodeTokenPayload(data.access_token) || {};
+      const roles   = payload?.realm_access?.roles || payload?.roles || [];
+      const skip    = ['default-roles-sentrix','offline_access','uma_authorization'];
+      const filtered = roles.filter(r => !skip.includes(r));
+      localStorage.setItem('sentrix_roles', JSON.stringify(filtered));
+      if (!filtered.length && username.toLowerCase() === 'admin') {
+        localStorage.setItem('sentrix_roles', JSON.stringify(['admin@SOC','approve_tamper','view_agents','view_dashboard','run_commands']));
+      }
+
+      window.location.href = '/dashboard';
+
+    } catch(e) {
+      showError('Server unreachable — ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'AUTHENTICATE';
+    }
+  }
+
+  function showError(msg) {
+    const box = document.getElementById('error-box');
+    box.textContent = msg;
+    box.style.display = 'block';
+  }
+</script>
+</body>
+</html>
